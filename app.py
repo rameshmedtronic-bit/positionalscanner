@@ -233,7 +233,7 @@ def load_nse_json():
         st.error(f"NSE.json not found at {NSE_JSON_PATH}")
         return pd.DataFrame()
 
-def process_bhavcopy(bhav_file, df_json):
+def process_bhavcopy(bhav_file, df_json, target_expiry_index=0):
     try:
         df_bhav = pd.read_csv(bhav_file)
         
@@ -250,10 +250,33 @@ def process_bhavcopy(bhav_file, df_json):
             return pd.DataFrame()
 
         futures['XpryDt'] = pd.to_datetime(futures['XpryDt'])
+        
+        # Filter out past expiries (Keep today and future)
+        # We use IST time to match the environment's expectation
+        ist_now = get_ist_now()
+        today = ist_now.replace(hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
+        
+        futures = futures[futures['XpryDt'] >= today]
+        if futures.empty:
+            st.warning("No future expiries found in the uploaded file.")
+            return pd.DataFrame()
+
         futures = futures.sort_values('XpryDt')
         
-        # Find nearest expiry per symbol
-        near_futures = futures.groupby('TckrSymb').first().reset_index()
+        # Identify unique expiry dates available in the bhavcopy
+        available_expiries = sorted(futures['XpryDt'].unique())
+        
+        # Select target expiry based on index (0 for Near, 1 for Next)
+        if target_expiry_index >= len(available_expiries):
+            # Fallback to the latest available if index is out of range
+            target_expiry = available_expiries[-1]
+        else:
+            target_expiry = available_expiries[target_expiry_index]
+
+        # Filter futures for the target expiry per symbol
+        near_futures = futures[futures['XpryDt'] == target_expiry].copy()
+        
+        # If a symbol doesn't have the target expiry, it will be skipped
         near_futures = near_futures[['TckrSymb', 'ClsPric', 'XpryDt']]
         near_futures = near_futures.rename(columns={'ClsPric': 'FuturePrice', 'XpryDt': 'FutureExpiryDate'})
 
@@ -265,7 +288,7 @@ def process_bhavcopy(bhav_file, df_json):
 
         options['XpryDt'] = pd.to_datetime(options['XpryDt'])
 
-        # Merge Options with Near Futures
+        # Merge Options with selected Futures expiry
         merged = pd.merge(options, near_futures, on='TckrSymb')
         merged = merged[merged['XpryDt'] == merged['FutureExpiryDate']]
         
@@ -535,6 +558,7 @@ if is_client_view:
     # Default refresh settings for clients
     auto_refresh = True
     refresh_interval = 15
+    target_expiry_idx = 0 # Default to current month for clients
     
 else:
     # ADMIN VIEW (Show Sidebar)
@@ -547,6 +571,17 @@ else:
         
         if access_token and access_token != saved_token:
             save_token(access_token)
+
+        st.markdown("---")
+        st.header("Expiry Settings")
+        # Expiry Selection for Monthly/Weekly/Intraday
+        expiry_type = st.radio(
+            "Select Expiry Month",
+            options=["Current Month", "Next Month"],
+            index=0,
+            help="Choose which expiry month to display data for."
+        )
+        target_expiry_idx = 0 if expiry_type == "Current Month" else 1
     
         st.markdown("---")
         st.header("Data Management")
@@ -655,33 +690,33 @@ if not nse_json_df.empty:
     run_every = refresh_interval if auto_refresh else None
 
     with tab1:
-        st.header("Monthly Options")
+        st.header(f"Monthly Options ({expiry_type if not is_client_view else 'Current Month'})")
         if os.path.exists(FILES['Monthly']):
             @st.fragment(run_every=run_every)
             def show_monthly():
-                df_m = process_bhavcopy(FILES['Monthly'], nse_json_df)
+                df_m = process_bhavcopy(FILES['Monthly'], nse_json_df, target_expiry_index=target_expiry_idx)
                 display_option_chain(df_m, access_token, "Monthly")
             show_monthly()
         else:
             st.info("Please upload a Monthly Bhavcopy in the sidebar to view data.")
 
     with tab2:
-        st.header("Weekly Options")
+        st.header(f"Weekly Options ({expiry_type if not is_client_view else 'Current Month'})")
         if os.path.exists(FILES['Weekly']):
             @st.fragment(run_every=run_every)
             def show_weekly():
-                df_w = process_bhavcopy(FILES['Weekly'], nse_json_df)
+                df_w = process_bhavcopy(FILES['Weekly'], nse_json_df, target_expiry_index=target_expiry_idx)
                 display_option_chain(df_w, access_token, "Weekly")
             show_weekly()
         else:
             st.info("Please upload a Weekly Bhavcopy in the sidebar to view data.")
 
     with tab3:
-        st.header("Intraday Options")
+        st.header(f"Intraday Options ({expiry_type if not is_client_view else 'Current Month'})")
         if os.path.exists(FILES['Intraday']):
             @st.fragment(run_every=run_every)
             def show_intraday():
-                df_i = process_bhavcopy(FILES['Intraday'], nse_json_df)
+                df_i = process_bhavcopy(FILES['Intraday'], nse_json_df, target_expiry_index=target_expiry_idx)
                 display_option_chain(df_i, access_token, "Intraday")
             show_intraday()
         else:

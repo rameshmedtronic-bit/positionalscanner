@@ -1,47 +1,44 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
 .Python
-env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
 venv/
-.env
+env/
+ENV/
 
-# Data & Cache
-data/
+# Streamlit
+.streamlit/
+
+# Local Data Files (Auto-downloaded by app)
 NSE.json
-api-scrip-master.csv
-google scanner dhan/api-scrip-master.csv
 *.csv
 *.gz
 *.zip
-*.json
-!blacklist.json
-!meta.json
-# Note: blacklist.json and meta.json are small metadata, but it's better to exclude all .json and only include them if needed.
-# Actually, it's safer to exclude ALL .json since token.json and ltp_cache.json are sensitive.
-# Let's just exclude the data directory and the master files.
+.token_cache
+instruments_cache.pkl
 
-# Exclude all data files and masters
-data/
-NSE.json
-api-scrip-master.csv
-google scanner dhan/api-scrip-master.csv
-*.csv
-*.gz
-*.zip
-ltp_cache.json
-token.json
-blacklist.json
-
-# Streamlit Secrets
-.streamlit/secrets.toml
-
-# IDE
+# VS Code
 .vscode/
-.idea/
 
-# OS
-.DS_Store
-Thumbs.db
+# Logs
+*.log
